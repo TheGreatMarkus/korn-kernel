@@ -26,7 +26,6 @@
 #include <linux/string.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
-#include <linux/time.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Cristian Aldea, Dan Seremet");
@@ -34,32 +33,21 @@ MODULE_DESCRIPTION("A simple kernel module");
 MODULE_VERSION("1.0");
 
 unsigned int inet_addr(char *str);
-int send_packet(struct net_device *dev, uint8_t dest_addr[ETH_ALEN], uint16_t proto, char *srcIP, char *dstIP, char *data_string);
+int send_packet(struct net_device *dev, uint8_t dest_addr[ETH_ALEN], uint16_t proto);
 
 static int __init LKM_init(void)
-{  
+{
    // Ethernet addresses
    static char addr[ETH_ALEN] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
    uint8_t dest_addr[ETH_ALEN];
-   memcpy(dest_addr, addr, ETH_ALEN);
-
-   // Network Device
    struct net_device *enp0s3;
-   enp0s3 = dev_get_by_name(&init_net, "enp0s3");
-
-   // Protocol
    uint16_t proto;
+
+   memcpy(dest_addr, addr, ETH_ALEN);
+   enp0s3 = dev_get_by_name(&init_net, "enp0s3");
    proto = ETH_P_IP;
 
-   // IPs and message
-   char *srcIP = "127.0.0.1";
-   char *dstIP = "192.168.0.200";
-   while(true){
-      char *data_string = "Test Message :)";
-      send_packet(enp0s3, dest_addr, proto, srcIP, dstIP, data_string);
-      udelay(1000000000L);
-   }
-
+   send_packet(enp0s3, dest_addr, proto);
 
    printk(KERN_INFO "Hello from KornKernel!\n");
    return 0;
@@ -82,10 +70,18 @@ unsigned int inet_addr(char *str)
    return *(unsigned int *)arr;
 }
 
-int send_packet(struct net_device *dev, uint8_t dest_addr[ETH_ALEN], uint16_t proto, char *srcIP, char *dstIP, char *data_string)
+int send_packet(struct net_device *dev, uint8_t dest_addr[ETH_ALEN], uint16_t proto)
 {
    int ret;
    unsigned char *data;
+   struct udphdr *uh;
+   struct iphdr *iph;
+   struct ethhdr *eth;
+
+   // TODO: make these parameters
+   char *srcIP = "127.0.0.1";
+   char *dstIP = "192.168.0.200";
+   char *data_string = "Test Message :)";
    int data_len = strlen(data_string);
 
    int udp_header_len = 8;
@@ -105,13 +101,13 @@ int send_packet(struct net_device *dev, uint8_t dest_addr[ETH_ALEN], uint16_t pr
    memcpy(data, data_string, data_len);
 
    /* UDP header */
-   struct udphdr *uh = (struct udphdr *)skb_push(skb, udp_header_len);
+   uh = (struct udphdr *)skb_push(skb, udp_header_len);
    uh->len = htons(udp_total_len);
    uh->source = htons(15934);
    uh->dest = htons(15904);
 
    /* IP header */
-   struct iphdr *iph = (struct iphdr *)skb_push(skb, ip_header_len);
+   iph = (struct iphdr *)skb_push(skb, ip_header_len);
    iph->ihl = ip_header_len / 4; //4*5=20 ip_header_len
    iph->version = 4;             // IPv4
    iph->tos = 0;
@@ -124,7 +120,7 @@ int send_packet(struct net_device *dev, uint8_t dest_addr[ETH_ALEN], uint16_t pr
    iph->daddr = inet_addr(dstIP);
 
    /*changing Mac address */
-   struct ethhdr *eth = (struct ethhdr *)skb_push(skb, sizeof(struct ethhdr)); //add data to the start of a buffer
+   eth = (struct ethhdr *)skb_push(skb, sizeof(struct ethhdr)); //add data to the start of a buffer
    skb->protocol = eth->h_proto = htons(proto);
    skb->no_fcs = 1;
    memcpy(eth->h_source, dev->dev_addr, ETH_ALEN);
