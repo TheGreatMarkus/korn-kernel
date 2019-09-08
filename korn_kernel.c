@@ -26,6 +26,7 @@
 #include <linux/string.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
+#include <linux/time.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Cristian Aldea, Dan Seremet");
@@ -33,7 +34,7 @@ MODULE_DESCRIPTION("A simple kernel module");
 MODULE_VERSION("1.0");
 
 unsigned int inet_addr(char *str);
-int send_packet(struct net_device *dev, uint8_t dest_addr[ETH_ALEN], uint16_t proto);
+int send_packet(struct net_device *dev, uint8_t dest_addr[ETH_ALEN], uint16_t proto, char *srcIP, char *dstIP, char *data_string);
 
 static int __init LKM_init(void)
 {  
@@ -50,7 +51,15 @@ static int __init LKM_init(void)
    uint16_t proto;
    proto = ETH_P_IP;
 
-   send_packet(enp0s3, dest_addr, proto);
+   // IPs and message
+   char *srcIP = "127.0.0.1";
+   char *dstIP = "192.168.0.200";
+   while(true){
+      char *data_string = "Test Message :)";
+      send_packet(enp0s3, dest_addr, proto, srcIP, dstIP, data_string);
+      udelay(1000000000L);
+   }
+
 
    printk(KERN_INFO "Hello from KornKernel!\n");
    return 0;
@@ -73,15 +82,10 @@ unsigned int inet_addr(char *str)
    return *(unsigned int *)arr;
 }
 
-int send_packet(struct net_device *dev, uint8_t dest_addr[ETH_ALEN], uint16_t proto)
+int send_packet(struct net_device *dev, uint8_t dest_addr[ETH_ALEN], uint16_t proto, char *srcIP, char *dstIP, char *data_string)
 {
    int ret;
    unsigned char *data;
-
-   // TODO: make these parameters
-   char *srcIP = "127.0.0.1";
-   char *dstIP = "192.168.0.200";
-   char *data_string = "Test Message :)";
    int data_len = strlen(data_string);
 
    int udp_header_len = 8;
