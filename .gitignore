@@ -7,5 +7,6 @@
 *.mod.c
 *.mod.o
 *.o
+*.mk
 Module.symvers
 modules.order
