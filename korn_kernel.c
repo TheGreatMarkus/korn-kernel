@@ -53,18 +53,18 @@ static int __init LKM_init(void)
    enp0s3 = dev_get_by_name(&init_net, "enp0s3");
    proto = ETH_P_IP;
 
-   for (i = 0; i < 1000; i++)
+   for (i = 0; i < 10000; i++)
    {
+      start = ktime_get();
       int payload_size = 100 + i;
       char data_string[payload_size];
       memset(data_string, 'a', payload_size);
 
-      start = ktime_get();
       send_packet(enp0s3, dest_addr, proto, srcIP, dstIP, data_string);
       end = ktime_get();
 
       actual_time = ktime_to_ns(ktime_sub(end, start));
-      printk(KERN_INFO "Packet with size %d: Time %lld\n", payload_size, (long long)actual_time);
+      printk(KERN_INFO "Packet with size %d; Time to send: %lld\n", payload_size, (long long)actual_time);
    }
 
    printk(KERN_INFO "Hello from KornKernel!\n");
