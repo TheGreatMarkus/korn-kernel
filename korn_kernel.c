@@ -26,6 +26,7 @@
 #include <linux/string.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
+#include <linux/ktime.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Cristian Aldea, Dan Seremet");
@@ -33,7 +34,7 @@ MODULE_DESCRIPTION("A simple kernel module");
 MODULE_VERSION("1.0");
 
 unsigned int inet_addr(char *str);
-int send_packet(struct net_device *dev, uint8_t dest_addr[ETH_ALEN], uint16_t proto);
+int send_packet(struct net_device *dev, uint8_t dest_addr[ETH_ALEN], uint16_t proto, char *srcIP, char *dstIP, char *data_string);
 
 static int __init LKM_init(void)
 {
@@ -42,12 +43,29 @@ static int __init LKM_init(void)
    uint8_t dest_addr[ETH_ALEN];
    struct net_device *enp0s3;
    uint16_t proto;
+   int i;
+   char *srcIP = "127.0.0.1";
+   char *dstIP = "192.168.0.200";
+   ktime_t start, end;
+   s64 actual_time;
 
    memcpy(dest_addr, addr, ETH_ALEN);
    enp0s3 = dev_get_by_name(&init_net, "enp0s3");
    proto = ETH_P_IP;
 
-   send_packet(enp0s3, dest_addr, proto);
+   for (i = 0; i < 1000; i++)
+   {
+      int payload_size = 100 + i;
+      char data_string[payload_size];
+      memset(data_string, 'a', payload_size);
+
+      start = ktime_get();
+      send_packet(enp0s3, dest_addr, proto, srcIP, dstIP, data_string);
+      end = ktime_get();
+
+      actual_time = ktime_to_ns(ktime_sub(end, start));
+      printk(KERN_INFO "Packet with size %d: Time %lld\n", payload_size, (long long)actual_time);
+   }
 
    printk(KERN_INFO "Hello from KornKernel!\n");
    return 0;
@@ -70,18 +88,13 @@ unsigned int inet_addr(char *str)
    return *(unsigned int *)arr;
 }
 
-int send_packet(struct net_device *dev, uint8_t dest_addr[ETH_ALEN], uint16_t proto)
+int send_packet(struct net_device *dev, uint8_t dest_addr[ETH_ALEN], uint16_t proto, char *srcIP, char *dstIP, char *data_string)
 {
    int ret;
    unsigned char *data;
    struct udphdr *uh;
    struct iphdr *iph;
    struct ethhdr *eth;
-
-   // TODO: make these parameters
-   char *srcIP = "127.0.0.1";
-   char *dstIP = "192.168.0.200";
-   char *data_string = "Test Message :)";
    int data_len = strlen(data_string);
 
    int udp_header_len = 8;
@@ -95,7 +108,7 @@ int send_packet(struct net_device *dev, uint8_t dest_addr[ETH_ALEN], uint16_t pr
    struct sk_buff *skb = alloc_skb(ETH_HLEN + ip_total_len, GFP_ATOMIC); //allocate a network buffer
    skb->dev = dev;
    skb->pkt_type = PACKET_OUTGOING;
-   skb_reserve(skb, ETH_HLEN + ip_header_len + udp_header_len); //adjust headroom
+   skb_reserve(skb, ETH_HLEN + ip_header_len + udp_header_len); //adjust headroomwire
                                                                 /* allocate space to data and write it */
    data = skb_put(skb, data_len);
    memcpy(data, data_string, data_len);
@@ -103,12 +116,12 @@ int send_packet(struct net_device *dev, uint8_t dest_addr[ETH_ALEN], uint16_t pr
    /* UDP header */
    uh = (struct udphdr *)skb_push(skb, udp_header_len);
    uh->len = htons(udp_total_len);
-   uh->source = htons(15934);
-   uh->dest = htons(15904);
+   uh->source = htons(1000);
+   uh->dest = htons(1000);
 
    /* IP header */
    iph = (struct iphdr *)skb_push(skb, ip_header_len);
-   iph->ihl = ip_header_len / 4; //4*5=20 ip_header_len
+   iph->ihl = ip_header_len / 4; // 20 / 4 = 5
    iph->version = 4;             // IPv4
    iph->tos = 0;
    iph->tot_len = htons(ip_total_len);
