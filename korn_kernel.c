@@ -23,15 +23,16 @@
 #include <linux/etherdevice.h>
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
-#include <linux/string.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
-#include <linux/ktime.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Cristian Aldea, Dan Seremet");
 MODULE_DESCRIPTION("A simple kernel module");
 MODULE_VERSION("1.0");
+
+static int numPackets = 1000;
+module_param(numPackets, int, S_IRUGO);
 
 unsigned int inet_addr(char *str);
 int send_packet(struct net_device *dev, uint8_t dest_addr[ETH_ALEN], uint16_t proto, char *srcIP, char *dstIP, char *data_string);
@@ -46,25 +47,18 @@ static int __init LKM_init(void)
    int i;
    char *srcIP = "127.0.0.1";
    char *dstIP = "192.168.0.200";
-   ktime_t start, end;
-   s64 actual_time;
 
    memcpy(dest_addr, addr, ETH_ALEN);
    enp0s3 = dev_get_by_name(&init_net, "enp0s3");
    proto = ETH_P_IP;
 
-   for (i = 0; i < 10000; i++)
+   for (i = 0; i < numPackets; i++)
    {
-      start = ktime_get();
       int payload_size = 100 + i;
       char data_string[payload_size];
       memset(data_string, 'a', payload_size);
 
       send_packet(enp0s3, dest_addr, proto, srcIP, dstIP, data_string);
-      end = ktime_get();
-
-      actual_time = ktime_to_ns(ktime_sub(end, start));
-      printk(KERN_INFO "Packet with size %d; Time to send: %lld\n", payload_size, (long long)actual_time);
    }
 
    printk(KERN_INFO "Hello from KornKernel!\n");
@@ -103,9 +97,10 @@ int send_packet(struct net_device *dev, uint8_t dest_addr[ETH_ALEN], uint16_t pr
    int ip_header_len = 20;
    int ip_payload_len = udp_total_len;
    int ip_total_len = ip_header_len + ip_payload_len;
+   struct sk_buff *skb;
 
    /* skb */
-   struct sk_buff *skb = alloc_skb(ETH_HLEN + ip_total_len, GFP_ATOMIC); //allocate a network buffer
+   skb = alloc_skb(ETH_HLEN + ip_total_len, GFP_ATOMIC); //allocate a network buffer
    skb->dev = dev;
    skb->pkt_type = PACKET_OUTGOING;
    skb_reserve(skb, ETH_HLEN + ip_header_len + udp_header_len); //adjust headroomwire
