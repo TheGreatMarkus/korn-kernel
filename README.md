@@ -1,1 +1,1 @@
-# KornKernel
+# korn-kernel
